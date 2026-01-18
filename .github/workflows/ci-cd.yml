@@ -1,0 +1,142 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ main, master, develop, claude/** ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  SOLUTION_PATH: 'WindowTabs.sln'
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+    - name: Build Win32 (C#)
+      run: dotnet build Win32/Win32.csproj --configuration Release --no-restore
+
+    - name: Build WtProgram (F#)
+      run: dotnet build WtProgram/WtProgram.fsproj --configuration Release --no-restore
+
+    - name: Run unit tests
+      run: dotnet test WindowTabs.Tests/WindowTabs.Tests.fsproj --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx"
+
+    - name: Publish test results
+      uses: EnricoMi/publish-unit-test-result-action/windows@v2
+      if: always()
+      with:
+        files: '**/test-results.trx'
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: WindowTabs-Build-${{ github.sha }}
+        path: |
+          WtProgram/bin/Release/net8.0-windows/WindowTabs.exe
+          WtProgram/bin/Release/net8.0-windows/*.dll
+          WtProgram/bin/Release/net8.0-windows/*.config
+        retention-days: 30
+
+    - name: Build summary
+      if: always()
+      run: |
+        echo "### Build Summary :rocket:" >> $env:GITHUB_STEP_SUMMARY
+        echo "" >> $env:GITHUB_STEP_SUMMARY
+        echo "- **Branch:** ${{ github.ref_name }}" >> $env:GITHUB_STEP_SUMMARY
+        echo "- **Commit:** ${{ github.sha }}" >> $env:GITHUB_STEP_SUMMARY
+        echo "- **.NET Version:** ${{ env.DOTNET_VERSION }}" >> $env:GITHUB_STEP_SUMMARY
+        echo "- **Configuration:** Release" >> $env:GITHUB_STEP_SUMMARY
+
+  code-quality:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+    - name: Build
+      run: dotnet build ${{ env.SOLUTION_PATH }} --configuration Release --no-restore
+
+    - name: Run tests with coverage
+      run: dotnet test WindowTabs.Tests/WindowTabs.Tests.fsproj --configuration Release --no-build --collect:"XPlat Code Coverage" --results-directory ./coverage
+
+    - name: Code Coverage Summary
+      uses: irongut/CodeCoverageSummary@v1.3.0
+      with:
+        filename: coverage/**/coverage.cobertura.xml
+        badge: true
+        fail_below_min: false
+        format: markdown
+        hide_branch_rate: false
+        hide_complexity: true
+        indicators: true
+        output: both
+        thresholds: '60 80'
+
+    - name: Add Coverage PR Comment
+      uses: marocchino/sticky-pull-request-comment@v2
+      if: github.event_name == 'pull_request'
+      with:
+        recreate: true
+        path: code-coverage-results.md
+
+  release:
+    runs-on: windows-latest
+    needs: [build-and-test, code-quality]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+    - name: Build Release
+      run: dotnet build ${{ env.SOLUTION_PATH }} --configuration Release --no-restore
+
+    - name: Create Release Package
+      run: |
+        $releaseDir = "WindowTabs-Release"
+        New-Item -ItemType Directory -Force -Path $releaseDir
+        Copy-Item "WtProgram/bin/Release/net8.0-windows/WindowTabs.exe" -Destination $releaseDir
+        Copy-Item "WtProgram/bin/Release/net8.0-windows/*.dll" -Destination $releaseDir
+        Copy-Item "WtProgram/bin/Release/net8.0-windows/WindowTabs.exe.config" -Destination $releaseDir -ErrorAction SilentlyContinue
+        Copy-Item "README.md" -Destination $releaseDir
+        Copy-Item "LICENSE" -Destination $releaseDir -ErrorAction SilentlyContinue
+        Compress-Archive -Path $releaseDir -DestinationPath "WindowTabs-${{ github.sha }}.zip"
+
+    - name: Upload Release Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: WindowTabs-Release-${{ github.sha }}
+        path: WindowTabs-${{ github.sha }}.zip
+        retention-days: 90

@@ -136,24 +136,26 @@ type Settings(isStandAlone) as this =
                         alignment = settingsJson.getString("alignment").def("Center")
                         tabAppearance =
                             let appearanceObject = settingsJson.getObject("tabAppearance").def(JObject())
-                            appearanceObject.items.fold this.defaultTabAppearance <| fun appearance (key,value) ->
-                            try
-                                let value =
-                                    let rawValue = (value :?> JValue).Value
-                                    let fieldType = Serialize.getFieldType (appearance.GetType()) key
-                                    if fieldType = typeof<Int32> then 
-                                        box(unbox<Int64>(rawValue).Int32)
-                                    elif fieldType = typeof<Color> then 
-                                        let colorStr = unbox<string>(rawValue)
-                                        box(Color.FromRGB(Int32.Parse(colorStr, Globalization.NumberStyles.HexNumber)))
-                                    else 
-                                        failwith "UNKNOWN APPEARANCE FIELD TYPE"
+                            let loadedAppearance = appearanceObject.items.fold this.defaultTabAppearance <| fun appearance (key,value) ->
+                                try
+                                    let value =
+                                        let rawValue = (value :?> JValue).Value
+                                        let fieldType = Serialize.getFieldType (appearance.GetType()) key
+                                        if fieldType = typeof<Int32> then
+                                            box(unbox<Int64>(rawValue).Int32)
+                                        elif fieldType = typeof<Color> then
+                                            let colorStr = unbox<string>(rawValue)
+                                            box(Color.FromRGB(Int32.Parse(colorStr, Globalization.NumberStyles.HexNumber)))
+                                        else
+                                            failwith "UNKNOWN APPEARANCE FIELD TYPE"
 
-                                Serialize.writeField appearance key value :?> TabAppearanceInfo
-                            with ex ->
-                                let errorMessage = "Error loading Appearance setting '" + key + "'. Using default value."
-                                MessageBox.Show(errorMessage, "Appearance Setting Error", MessageBoxButtons.OK, MessageBoxIcon.Warning) |> ignore
-                                appearance 
+                                    Serialize.writeField appearance key value :?> TabAppearanceInfo
+                                with ex ->
+                                    let errorMessage = "Error loading Appearance setting '" + key + "'. Using default value."
+                                    MessageBox.Show(errorMessage, "Appearance Setting Error", MessageBoxButtons.OK, MessageBoxIcon.Warning) |> ignore
+                                    appearance
+                            // Validate and sanitize the loaded appearance
+                            SettingsValidator.validateAndSanitize loadedAppearance 
                     }
                     cachedSettingsRec <- Some(settings)
                 with ex ->

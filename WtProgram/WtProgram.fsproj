@@ -49,6 +49,7 @@
     <Compile Include="Shared/Model.fs" />
     <Compile Include="Shared/UIHelper.fs" />
     <Compile Include="Shared/Logger.fs" />
+    <Compile Include="Shared/SettingsValidator.fs" />
     <Compile Include="HotKeyManager.fs" />
     <Compile Include="DragDropController.fs" />
     <Compile Include="TabStripSprite.fs" />
