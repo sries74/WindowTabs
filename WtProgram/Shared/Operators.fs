@@ -8,7 +8,6 @@ open System.Text.RegularExpressions
 open System.Threading
 open System.Windows.Forms
 open System.Drawing
-open Microsoft.FSharp.Collections.Tagged
 
 type IProperty<'a> =
     abstract member value : 'a with get,set
@@ -240,7 +239,11 @@ module List2 =
     let distinct (this:List2<_>) = List2(Seq.toList(Seq.distinct (this.list)))    
      
 type Map2<'a, 'b> when 'a : equality (map) =
-    new(?l:List2<_>) = Map2<'a, 'b>(Tagged.Map<'a, 'b, Comparer<'a>>.Create(Comparer<'a>(),(defaultArg l (List2())).list))
+    new(?l:List2<'a * 'b>) =
+        let items = (defaultArg l (List2())).list
+        let comparer = Comparer<'a>()
+        let mapData = Map<'a, 'b>(Seq.ofList items, comparer)
+        Map2<'a, 'b>(mapData)
     member this.items : List2<'a * 'b> = List2(map.ToList())
     member this.add key value = Map2(map.Add(key, value))
     member this.remove key = Map2(map.Remove(key))
@@ -252,7 +255,11 @@ type Map2<'a, 'b> when 'a : equality (map) =
     member this.values = this.items.map(snd)
 
 type Set2<'a when 'a : equality>(set) =
-    new(?l:List2<_>) = Set2<'a>(Tagged.Set<'a, Comparer<'a>>.Create(Comparer<'a>(),(defaultArg l (List2())).list))
+    new(?l:List2<'a>) =
+        let items = (defaultArg l (List2())).list
+        let comparer = Comparer<'a>()
+        let setData = Set<'a>(Seq.ofList items, comparer)
+        Set2<'a>(setData)
     member this.innerSet = set
     member this.items = List2(set.ToList())
     member this.add item = Set2(set.Add(item))
