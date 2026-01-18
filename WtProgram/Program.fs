@@ -140,7 +140,7 @@ type Program() as this =
                 | Some(tabLimit) -> groups.where(fun g -> g.windows.count < tabLimit)
                 | None -> groups
             let groups = groups.where(fun g-> g.windows.count > 0).sortBy(fun g -> g.windows.map(fun hwnd -> hwndZorders.tryFind(hwnd).def(Int32.MaxValue)).minBy(id))
-            let group = groups.tryFind(fun g -> g.windows.map(fun hwnd -> os.windowFromHwnd(hwnd).pid.processPath).contains((=) window.pid.processPath))
+            let group = groups.tryFind(fun g -> g.windows.map(fun hwnd -> os.windowFromHwnd(hwnd).pid.groupingKey).contains((=) window.pid.groupingKey))
             Some(group)
         else None
 

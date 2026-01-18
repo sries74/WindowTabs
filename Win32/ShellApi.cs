@@ -361,7 +361,13 @@ namespace Bemo
             ref Guid iid /*IID_IPropertyStore*/,
             [Out(), MarshalAs(UnmanagedType.Interface)]
                 out IPropertyStore propertyStore);
-        
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern int GetApplicationUserModelId(
+            IntPtr hProcess,
+            ref uint applicationUserModelIdLength,
+            [MarshalAs(UnmanagedType.LPWStr)] StringBuilder applicationUserModelId);
+
         public static ITaskbarList4 GetTaskbar()
         {
             var taskbarList = (ITaskbarList4)new CTaskbarList();

@@ -412,10 +412,51 @@ namespace Bemo
             propStore.GetValue(ref PropertyKey.PKEY_AppUserModel_ID, out pv);
 
             var appId = pv.GetValue();
-            
+
             Marshal.ReleaseComObject(propStore);
 
             return appId;
+        }
+
+        public static string GetProcessApplicationUserModelId(int processId)
+        {
+            IntPtr hProcess = WinBaseApi.OpenProcess(ProcessAccessRights.PROCESS_QUERY_LIMITED_INFORMATION, false, processId);
+            if (hProcess == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            try
+            {
+                uint length = 260;
+                StringBuilder aumid = new StringBuilder((int)length);
+                int result = ShellApi.GetApplicationUserModelId(hProcess, ref length, aumid);
+
+                if (result == WinError.ERROR_SUCCESS)
+                {
+                    return aumid.ToString();
+                }
+                else if (result == WinError.ERROR_INSUFFICIENT_BUFFER)
+                {
+                    aumid = new StringBuilder((int)length);
+                    result = ShellApi.GetApplicationUserModelId(hProcess, ref length, aumid);
+                    if (result == WinError.ERROR_SUCCESS)
+                    {
+                        return aumid.ToString();
+                    }
+                }
+                else if (result == WinError.APPMODEL_ERROR_NO_APPLICATION)
+                {
+                    // Process doesn't have an AUMID (normal desktop application)
+                    return null;
+                }
+
+                return null;
+            }
+            finally
+            {
+                WinBaseApi.CloseHandle(hProcess);
+            }
         }
         public static void SetWindowAppId(IntPtr hwnd, string appId)
         {

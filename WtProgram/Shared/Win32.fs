@@ -565,6 +565,17 @@ and Pid(pid:int) =
 
     member this.exeName = Path.GetFileName(this.processPath).ToLower()
 
+    member this.applicationUserModelId = Cell.cacheProp this <| fun() ->
+        Win32Helper.GetProcessApplicationUserModelId(this.pid)
+
+    member this.groupingKey = Cell.cacheProp this <| fun() ->
+        // Create composite grouping key from process path and AUMID
+        let aumid = this.applicationUserModelId
+        match aumid with
+        | null -> this.processPath  // Fallback to process path only for non-UWP apps
+        | "" -> this.processPath
+        | id -> sprintf "%s|%s" this.processPath id  // Combine path and AUMID
+
 and Win32Message = {
     hwnd : IntPtr
     msg : int
